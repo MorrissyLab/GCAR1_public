@@ -32,14 +32,13 @@ RANK_END="30"
 RANK_BY="5"
 RUN_RANGE=($(seq ${RANK_START} ${RANK_BY} ${RANK_END}))
 
-# One of frobenius or kullback-leibler, with the prior being faster, but the latter more accurate.
 BETA_LOSS="kullback-leibler"
 
 SAMPLES="samples.csv"
 SR_OUTPUT="/work/morrissy_lab/gurveer/gpnmb_car/datasets/"
 
 ####### Run the CNMF script #########################
-Prepare the data for MosaicMPI sfactorization.
+# Prepare the data for MosaicMPI sfactorization.
 mosaicmpi txt-to-h5ad --data_file ${COUNT_FILE_VISHD} --metadata ${METADATA_FILE_VISHD} -o dataset_vishd.h5ad
 mosaicmpi check-h5ad -i dataset_vishd.h5ad -o dataset_vishd_filtered.h5ad
 mosaicmpi model-odg --name ${RUN_NAME_VISHD} --input dataset_vishd_filtered.h5ad
