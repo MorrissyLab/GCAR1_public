@@ -570,7 +570,7 @@ GEP_correlation_singlerank <- function(GS_dataset1, GS_dataset2){
   return(correlation_mat)
 }
 
-## Program Analysis Functions ----
+# Program Analysis Functions ----
 program_enrichment <- function(usage_norm, threshold = 0.1, file_name, file_height = 6, file_width = 8, program_annotation = NULL){
   cutoff <- as.data.frame(usage_norm)
   cutoff$sample <- paste(sapply(strsplit(row.names(cutoff), "_"), "[", 1))
@@ -785,7 +785,7 @@ program_enrichment_pc <- function(usage_norm, plot = "heatmap", subset_data = FA
   }
 }
 
-## Neighbourhood Analysis Functions ----
+# Neighbourhood Analysis Functions ----
 seurat_object_coords <- function(){
   # Get spot centroids from the 3 samples
   pNA_spots <- as.data.frame(primary_no_addon@images$slice1.024um@boundaries$centroids@coords)
@@ -814,72 +814,127 @@ seurat_object_coords <- function(){
 }
 
 program_neighbours <- function(program_spots, cell_centroids, max_radius = 3){
-  final_neigh_df <- data.frame()
+  program_spots <- program_spots
+  radius <- 75
+  distances <- seq(0, max_radius) * radius
   
-  for(a in 1:length(program_spots)){
-    radius <- 75
+  # Convert cell_centroids to a matrix for faster indexing
+  cell_centroids_matrix <- as.matrix(cell_centroids[, c("col", "row")])
+  cell_centroid_samples <- cell_centroids$sample  # Store sample column separately for indexing
+  
+  # Pre-compute bounds for each radius level to avoid repetitive calculations
+  bounds <- lapply(distances, function(k) list(lower = -k, upper = k))
+  
+  # Parallelize across `program_spots` if possible
+  cl <- makeCluster(parallelly::availableCores() - 1)  # Use available cores minus one
+  clusterExport(cl, c("program_spots", "cell_centroids_matrix", "cell_centroid_samples", 
+                      "bounds", "distances", "radius", "max_radius"),
+                envir=environment())
+  clusterEvalQ(cl, library(data.table))
+  
+  final_results <- parLapply(cl, seq_along(program_spots), function(i) {
+    spot <- cell_centroids_matrix[program_spots[i], ]
+    sample <- sub("_.*", "", rownames(cell_centroids)[i])
     
-    spot <- cell_centroids[program_spots[a],]
-    sample <- rownames(spot)
-    sample <- paste(sapply(strsplit(sample, "_"), "[", 1))
+    union_spots_subset <- cell_centroids_matrix[cell_centroid_samples == sample, , drop = FALSE]
+    subset_indices <- which(cell_centroid_samples == sample)
     
-    union_spots_subset <- cell_centroids[cell_centroids$sample == sample,]
-    neigh_spots <- data.frame(sample = "NA", spot_of_interest = "NA", r = "NA", type = "NA", neighbours = "NA", nr_neighbours = "NA")
+    # Store intermediate results for each radius
+    spot_results <- vector("list", length(bounds))
     
-    # Set k for the number of neighbors to select around the spot (k = 1 --> one ring around a spot, etc.)
-    for(k in 0:max_radius){
-      # The max radius of the seurat objects and the rownames of the union_spots_subset obj
-      k <- k * radius
-      uss_cells <- rownames(union_spots_subset)
+    for (j in seq_along(bounds)) {
+      k_bounds <- bounds[[j]]
       
-      # Each spot has N neighbors, where the number of N is related to the K value. 
-      # Take the cells that have centroids between the upper and lower bounds of the specific spot_coords col. i.e., get all the cells vertically between the range.
-      # Take the cells that have centroids between the upper and lower bounds of the specific spot_coords row i.e., get all the cells horitzontally between the range.
-      temp_spots_x_restricted <- union_spots_subset[union_spots_subset$col <= (spot$col + k) & union_spots_subset$col >= (spot$col - k),]
-      temp_spots_y_restricted <- union_spots_subset[union_spots_subset$row <= (spot$row + k) & union_spots_subset$row >= (spot$row - k),]
-      temp_spots <- intersect(rownames(temp_spots_x_restricted), rownames(temp_spots_y_restricted))
-      temp_spots <- union_spots_subset[rownames(union_spots_subset) %in% temp_spots,]
+      # Apply bounds to subset neighbors
+      mask_x <- (union_spots_subset[, "col"] >= (spot["col"] + k_bounds$lower)) &
+        (union_spots_subset[, "col"] <= (spot["col"] + k_bounds$upper))
+      mask_y <- (union_spots_subset[, "row"] >= (spot["row"] + k_bounds$lower)) &
+        (union_spots_subset[, "row"] <= (spot["row"] + k_bounds$upper))
       
-      temp_spots <- data.frame(sample = sample,
-                               spot_of_interest = program_spots[a], 
-                               r = k, type = "circular", 
-                               neighbours = I(list(rownames(temp_spots))), nr_neighbours = dim(temp_spots)[1])
-      neigh_spots <- rbind(neigh_spots, temp_spots)
+      neighbors <- subset_indices[mask_x & mask_y]
+      
+      # Record result
+      spot_results[[j]] <- data.frame(
+        sample = sample,
+        spot_of_interest = program_spots[i],
+        r = distances[j],
+        type = "circular",
+        neighbours = I(list(rownames(cell_centroids)[neighbors])),
+        nr_neighbours = length(neighbors)
+      )
     }
-    neigh_spots <- neigh_spots[-1,]
-    
-    # Populate the final dataframe
-    final_neigh_df <- rbind(final_neigh_df, neigh_spots)
-  }
+    rbindlist(spot_results)
+  })
   
-  return (final_neigh_df)
+  stopCluster(cl)  # Stop the parallel cluster
+  
+  # Combine all parallelized results
+  final_neigh_df <- rbindlist(final_results)
+  
+  return(final_neigh_df)
 }
 
-remove_overlapping_neighbours <- function(df){
-  radii <- as.numeric(unique(df$r))
+remove_overlapping_neighbours <- function(spot_neighbours_df){
+  # Convert to data.table for efficient updates
+  spot_neighbours_dt <- as.data.table(spot_neighbours_df)
   
-  for (soi in unique(df$spot_of_interest)){
-    soi_rows <- df[df$spot_of_interest == soi,]
+  # Ensure radii are unique and sorted
+  radii <- sort(unique(as.numeric(spot_neighbours_dt$r)))
+  
+  # Set up parallel cluster backend
+  num_cores <- parallelly::availableCores() - 1  # Leave one core free
+  plan(cluster, workers = num_cores)
+  
+  # Split unique spots into chunks for parallel processing
+  unique_spots <- unique(spot_neighbours_dt$spot_of_interest)
+  spot_chunks <- split(unique_spots, cut(seq_along(unique_spots), num_cores, labels = FALSE))
+  
+  # Define function to process each chunk
+  process_chunk <- function(spots_chunk) {
+    # Initialize a list to store neighbors encountered for each spot of interest
+    neighbors_encountered <- vector("list", length(spots_chunk))
+    names(neighbors_encountered) <- spots_chunk
     
-    # Initialize an empty vector to store the neighbors encountered so far for the current spot of interest
-    neighbors_encountered_so_far <- c()
-    
-    for (i in radii){
-      neighbors <- unlist(soi_rows$neighbours[soi_rows$r == as.character(i)])
+    # Process each spot of interest in the chunk
+    for (soi in spots_chunk) {
+      # Initialize encountered neighbors
+      neighbors_encountered[[soi]] <- character(0)
       
-      # Retain only unique neighbors by removing those already encountered in smaller radii
-      unique_neighbors <- setdiff(neighbors, neighbors_encountered_so_far)
-      
-      # Update the list of encountered neighbors for the next radius
-      neighbors_encountered_so_far <- union(neighbors_encountered_so_far, unique_neighbors)
-      
-      # Update the neighbors in the original dataframe
-      df$neighbours[df$spot_of_interest == soi & df$r == as.character(i)] <- list(unique_neighbors)
-      df$nr_neighbours[df$spot_of_interest == soi & df$r == as.character(i)] <- length(unique_neighbors)
+      # Loop over each radius
+      for (rad in radii) {
+        # Logical indexing to select rows by spot of interest and radius
+        soi_rows <- spot_neighbours_dt[spot_of_interest == soi & r == rad]
+        
+        # Apply unique and setdiff to the neighbors
+        current_neighbors <- unique(unlist(soi_rows$neighbours))
+        unique_neighbors <- setdiff(current_neighbors, neighbors_encountered[[soi]])
+        
+        # Update encountered neighbors list
+        neighbors_encountered[[soi]] <- c(neighbors_encountered[[soi]], unique_neighbors)
+        
+        # Update the data.table with unique neighbors and count
+        spot_neighbours_dt[spot_of_interest == soi & r == rad, `:=`(
+          neighbours = list(unique_neighbors),
+          nr_neighbours = length(unique_neighbors)
+        )]
+        
+        # Debug: Check if unique_neighbors is being correctly assigned
+        if (length(unique_neighbors) == 0) {
+          message("Empty unique_neighbors for spot_of_interest = ", soi, ", radius = ", rad)
+        }
+      }
     }
+    return(spot_neighbours_dt[spot_of_interest %in% spots_chunk, ])
   }
   
-  return(df)
+  # Apply processing in parallel using future_lapply with cluster strategy
+  results <- future_lapply(spot_chunks, process_chunk)
+  
+  # Combine results into a single data.table
+  final_result <- rbindlist(results)
+  
+  # Return final result as a data.frame if needed
+  return(as.data.frame(final_result))
 }
 
 # MGS: Figure 5d-g; Extended Figure 7b. ----
