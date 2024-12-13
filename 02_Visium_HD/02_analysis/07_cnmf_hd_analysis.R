@@ -28,8 +28,8 @@ library(future.apply)
 library(doParallel)
 library(rstatix)
 
-setwd("/work/morrissy_lab/gurveer/gpnmb_car/analysis")
-SAVE_FOLDER <- "/work/morrissy_lab/gurveer/gpnmb_car/tmp/analysis_plots/"
+setwd("/gpnmb_car/analysis")
+SAVE_FOLDER <- "/gpnmb_car/tmp/analysis_plots/"
 PROGRAM_ANNOTATION <- NULL
 RANK <- 15
 
@@ -1080,10 +1080,10 @@ if (gPROFILER_RESULTS){
 # Load the Seurat Objects ----
 rm(list = setdiff(setdiff(ls(), lsf.str()), program_var_names))
 
-primary_no_addon_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_primary_HD/", "outs/", sep = '/')
-biopsy_s1_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_biopsy_S1_DS_RA_M/", "outs/", sep = '/')
-biopsy_s2_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_biopsy_S2_DS_RA_M/", "outs/", sep = '/')
-xenograft_no_addon_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_xenograft_HD/", "outs/", sep = '/')
+primary_no_addon_path <- paste("/gpnmb_car/datasets/SPSQ_primary_HD/", "outs/", sep = '/')
+biopsy_s1_path <- paste("/gpnmb_car/datasets/SPSQ_biopsy_S1_DS_RA_M/", "outs/", sep = '/')
+biopsy_s2_path <- paste("/gpnmb_car/datasets/SPSQ_biopsy_S2_DS_RA_M/", "outs/", sep = '/')
+xenograft_no_addon_path <- paste("/gpnmb_car/datasets/SPSQ_xenograft_HD/", "outs/", sep = '/')
 primary_no_addon <- Load10X_Spatial(data.dir = primary_no_addon_path, bin.size = c(24))
 biopsy_s1 <- Load10X_Spatial(data.dir = biopsy_s1_path, bin.size = c(24))
 biopsy_s2 <- Load10X_Spatial(data.dir = biopsy_s2_path, bin.size = c(24))

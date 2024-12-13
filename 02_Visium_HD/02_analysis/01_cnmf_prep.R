@@ -6,11 +6,11 @@ library(WGCNA)
 library(data.table)
 library(ComplexHeatmap)
 
-setwd("/work/morrissy_lab/gurveer/gpnmb_car/")
+setwd("/gpnmb_car/")
 
-primary_no_addon_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_primary_HD/", "outs/", sep = '/')
-biopsy_s1_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_biopsy_S1_DS_RA_M/", "outs/", sep = '/')
-biopsy_s2_path <- paste("/work/morrissy_lab/gurveer/gpnmb_car/datasets/SPSQ_biopsy_S2_DS_RA_M/", "outs/", sep = '/')
+primary_no_addon_path <- paste("/gpnmb_car/datasets/SPSQ_primary_HD/", "outs/", sep = '/')
+biopsy_s1_path <- paste("/gpnmb_car/datasets/SPSQ_biopsy_S1_DS_RA_M/", "outs/", sep = '/')
+biopsy_s2_path <- paste("/gpnmb_car/datasets/SPSQ_biopsy_S2_DS_RA_M/", "outs/", sep = '/')
 
 # Load Samples ----
 primary_no_addon <- Load10X_Spatial(data.dir = primary_no_addon_path, bin.size = c(24))
