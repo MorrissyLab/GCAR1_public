@@ -35,7 +35,7 @@ RUN_RANGE=($(seq ${RANK_START} ${RANK_BY} ${RANK_END}))
 BETA_LOSS="kullback-leibler"
 
 SAMPLES="samples.csv"
-SR_OUTPUT="/work/morrissy_lab/gurveer/gpnmb_car/datasets/"
+SR_OUTPUT="/gpnmb_car/datasets/"
 
 ####### Run the CNMF script #########################
 # Prepare the data for MosaicMPI sfactorization.
