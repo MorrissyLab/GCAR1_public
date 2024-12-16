@@ -36,4 +36,6 @@ SEP="_"
 ####### Run your script #########################
 python plots.py ${RANK} ${USAGE_FILE} ${METADATA_FILE_CSV} ${SAMPLES_FILE} ${SR_OUTPUT} ${PLOT_DIRECTORY} ${ROWS} ${COLS} ${MAX_CUTOFF} ${SEP}
 wait
-python pdfcombine.py ${RANK} ${PLOT_DIRECTORY}
+
+# The combined plots for Visium HD data are multi-GB files, which can be difficult to open on any computer.
+# python pdfcombine.py ${RANK} ${PLOT_DIRECTORY}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#SBATCH --job-name=cNMF_GCAR1_primary_biopsy_DS_RA
+#SBATCH --job-name=cNMF_GCAR1
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -70,16 +70,8 @@ PLOT_DIRECTORY="plots_"${RUN_NAME_VISHD}
 HIRES_DIRECTORY=${PLOT_DIRECTORY}"/hires_vectors/gene_expression"
 LOWRES_DIRECTORY=${PLOT_DIRECTORY}"/lowres_jpeg/gene_expression"
 
-COMBINED_DIRECTORY=${PLOT_DIRECTORY}"/combined"
-COMBINED_HIRES_DIRECTORY=${COMBINED_DIRECTORY}"/hires_vectors/gene_expression/binarized"
-COMBINED_LOWRES_DIRECTORY=${COMBINED_DIRECTORY}"/lowres_jpeg/gene_expression/binarized"
-
 mkdir -p ${PLOT_DIRECTORY}
 mkdir -p ${HIRES_DIRECTORY}
 mkdir -p ${LOWRES_DIRECTORY}
-mkdir -p ${COMBINED_DIRECTORY}
-mkdir -p ${COMBINED_HIRES_DIRECTORY}
-mkdir -p ${COMBINED_LOWRES_DIRECTORY}
 
 sbatch --array=0-$(( ${#RUN_RANGE[@]} - 1)) cnmf_usage_plots.sh ${RUN_NAME_VISHD} ${PLOT_DIRECTORY} ${METADATA_FILE_CSV} ${SAMPLES} ${SR_OUTPUT} ${RUN_RANGE[@]}
-

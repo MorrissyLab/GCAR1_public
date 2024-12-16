@@ -13,7 +13,6 @@ matplotlib.use('Agg')
 
 # Settings
 # Platform
-VISIUM = False
 VISIUM_HD = True
 
 # Plot types
@@ -23,22 +22,10 @@ LOW_RES = True
 HI_RES_DPI = 3000
 LOW_RES_DPI = 1250
 GENE_PLOTTING = True
-HE_PLOTTING = False
-USAGE_PLOTTING = False
+HE_PLOTTING = True
+USAGE_PLOTTING = True
 
-BINARIZE = True
-GENE_LIST = ["IL1B", "CCL3", "CXCL1", "CXCL2", "CXCL3", "CXCL5",
-             "IDO1", "IDO2", "ISG15", "CXCL8", "CXCL9", "CXCL10",
-             "ARG1", "MRC1", "CD274", "CX3CR1",
-             "MKI67", "CDK1",
-             "LYVE1", "HES1", "FOLR2",
-             "VEGFA", "SPP1",
-             "APOC1", "APOE", "ACP5", "FABP5",
-             "GPNMB", "TFE3", "ASPSCR1", "MRC1", "CD3D", "CD3E", "CD3G", "CD4",
-             "CD8A", "CD19", "COL6A1", "VEGFA", "VEGFB", "VEGFC", "VEGFD", "HIF1A",
-             "VWF", "PECAM1", "CD34", "PECAM1", "MS4A1", "TNC", "FN1", "MYH1", 
-             "PEX7", "GCAR", "CD274", "PDCD1", "ATF1", "HMGB2", "EIF2A", "CYC1", 
-             "ANXA6", "GUK1", "CD44", "LGALS3BP", "CD68"]
+GENE_LIST = ["GPNMB"]
 
 def load_metadata(clusters_path, cluster_key=None):
     """
@@ -182,9 +169,6 @@ def create_gene_plots(metadata_df, samples_df, SAMPLE_DIRECTORY_PATH, gene, MAX_
         else:
             VMAX = sorted(list(sample_read_data[:, gene].X.todense()), reverse = True)[MAX_CUTOFF]
 
-            if BINARIZE and VMAX > 0:
-                VMAX = 1
-
         cmap = plt.get_cmap(color_scale)
         cbar = plt.colorbar(cm.ScalarMappable(norm = None, cmap = cmap), ax = axes_hist[index], ticks = [0, 1], shrink = 0.8, pad = 0.03)
         cbar.ax.set_yticklabels([str(0.00), '%s' % float('%.1g' % VMAX)], fontsize=15)
@@ -197,18 +181,10 @@ def create_gene_plots(metadata_df, samples_df, SAMPLE_DIRECTORY_PATH, gene, MAX_
     figure.tight_layout()
 
     if (save):
-        if BINARIZE:
-            if HI_RES:
-                figure.savefig(os.path.join(save_dir, "combined", "hires_vectors", "gene_expression", "binarized", f"{plot_key}.pdf"), bbox_inches='tight', dpi = HI_RES_DPI)
-            if LOW_RES:
-                figure.savefig(os.path.join(save_dir, "combined", "lowres_jpeg", "gene_expression", "binarized", f"{plot_key}.jpeg"), bbox_inches='tight', dpi = LOW_RES_DPI)
-
-        else:
-            if HI_RES:
-                figure.savefig(os.path.join(save_dir,"hires_vectors", "gene_expression", f"{plot_key}.pdf"), bbox_inches='tight', dpi = HI_RES_DPI)
-
-            if LOW_RES:
-                figure.savefig(os.path.join(save_dir,"lowres_jpeg", "gene_expression", f"{plot_key}.jpeg"), bbox_inches='tight', dpi = LOW_RES_DPI)
+        if HI_RES:
+            figure.savefig(os.path.join(save_dir,"hires_vectors", "gene_expression", f"{plot_key}.pdf"), bbox_inches='tight', dpi = HI_RES_DPI)
+        if LOW_RES:
+            figure.savefig(os.path.join(save_dir,"lowres_jpeg", "gene_expression", f"{plot_key}.jpeg"), bbox_inches='tight', dpi = LOW_RES_DPI)
 
         # Clear the current axes.
         plt.cla()

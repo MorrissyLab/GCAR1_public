@@ -35,8 +35,8 @@ RANK <- 15
 
 # MGS Parameters and Switches ----
 SPECTRA <- "02_Visium_HD/04_datasets/02_cnmf_outputs/cNMF_5_30_5_ST.gene_spectra_score.k_15.dt_2_0.txt"
-GMT_FILE <- "17_10_24_all_gmt_merge.gmt"
-GMT_FILE_ALIAS <- "17_10_24_All_GMT_Merge"
+GMT_FILE <- "02_Visium_HD/04_datasets/04_marker_gene_score/Supplementary_Table_7.gmt"
+GMT_FILE_ALIAS <- "Supplementary_Table_7_GMT"
 
 GENE_RANK_PLOTTING <- T
 COMPUTE_MGS <- T
@@ -65,11 +65,8 @@ PROGRAM_GENE_EXPRESSION <- T
 SAMPLE_COLS <- c("pNA" = "#9B5DE5", "bS1" = "#00F5D4", "bS2" = "#0068E8")
 # SAMPLE_COLS <- c("pNA" = "#9B5DE5", "bS1" = "#00F5D4", "bS2" = "#0068E8", "xeno" = "#d5c58a")
 
-NEIGHBOURHOOD_ANALYSIS_GCAR_CELLS <- F
-NEIGHBORHOOD_ANALYSIS_T_CELLS <- F
-NEIGHBORHOOD_ANALYSIS_PROGRAMS <- F
-NEIGHBORHOOD_ANALYSIS_PROGRAM_PAIRS <- F
-NEIGHBORHOOD_ANALYSIS_SUMMARY <- F
+NEIGHBORHOOD_ANALYSIS_PROGRAM_PAIRS <- T
+NEIGHBORHOOD_ANALYSIS_SUMMARY <- T
 NEIGHBORHOOD_ANALYSIS_SUMMARY_PROGRAMS <- c("9_10")
 
 # Gene expression analysis parameters ----
@@ -82,7 +79,6 @@ GENE_EXPRESSION_NORMALIZE <- list("1" = c("GPNMB"),
 GENE_EXPRESSION_NORMALIZE_METHOD <- "all"
 
 INSIDE_OUTSIDE_T_CELL <- T
-INSIDE_OUTSIDE_PROGRAM <- T
 INSIDE_OUTSIDE_NICHE <- T
 
 INSIDE_OUTSIDE_GENES <- data.frame(category = c(rep("Pair_1", 2), 
@@ -649,130 +645,6 @@ program_enrichment <- function(usage_norm, threshold = 0.1, file_name, file_heig
   dev.off()
 }
 
-program_enrichment_pc <- function(usage_norm, plot = "heatmap", subset_data = FALSE,
-                                  file_name, file_height = 30, file_width = 100){
-  pe_pc <- t(usage_norm)
-  pe_pc_annot <- data.frame(spot = colnames(pe_pc), sample = sapply(strsplit(colnames(pe_pc), "_"), "[", 1))
-  pe_pc_annot$tissue <- pe_pc_annot$sample
-  pe_pc_annot$tissue <- sub("bS1", "bS", pe_pc_annot$tissue)
-  pe_pc_annot$tissue <- sub("bS2", "bS", pe_pc_annot$tissue)
-  
-  GCAR_PD1_PDL1_counts <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts)))
-  GCAR_PD1_PDL1_counts <- GCAR_PD1_PDL1_counts[,c("GCAR", "PDCD1", "CD274")]
-  GCAR_PD1_PDL1_counts <- GCAR_PD1_PDL1_counts[pe_pc_annot$spot,]
-  
-  if (subset_data == TRUE){
-    GCAR_PD1_PDL1_counts <- GCAR_PD1_PDL1_counts[rowSums(GCAR_PD1_PDL1_counts) > 0, ]
-    pe_pc <- pe_pc[, rownames(GCAR_PD1_PDL1_counts)]
-    pe_pc_annot <- pe_pc_annot[pe_pc_annot$spot %in% rownames(GCAR_PD1_PDL1_counts),]
-    pe_pc_annot <- cbind(GCAR_PD1_PDL1_counts, pe_pc_annot)
-  }
-  
-  if (plot == "heatmap"){
-    pe_pc_annot <- cbind(pe_pc_annot, GCAR_PD1_PDL1_counts)
-    pe_pc_program_order <- as.numeric(sapply(strsplit(rownames(pe_pc), "GEP", ""), "[", 2))
-    
-    haT <- HeatmapAnnotation(sample = pe_pc_annot$sample, 
-                             tissue = pe_pc_annot$tissue,
-                             GCAR = pe_pc_annot$GCAR,
-                             PDCD1 = pe_pc_annot$PDCD1,
-                             PDL1 = pe_pc_annot$CD274,
-                             col = list(sample = c("pNA" = "#9B5DE5", "bS1" = "#00F5D4", "bS2" = "#0068E8", "xeno" = "#d5c58a"),
-                                        tissue = c("pNA" = "#9B5DE5", "bS" = "#0093e8", "xeno" = "#d5c58a"),
-                                        GCAR = colorRamp2(range(pe_pc_annot$GCAR), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        PDCD1 = colorRamp2(range(pe_pc_annot$PDCD1), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        PDL1 = colorRamp2(range(pe_pc_annot$CD274), hcl_palette = "YlOrRd", reverse = TRUE)),
-                             which = "col")
-    haL <- HeatmapAnnotation(program = pe_pc_program_order,
-                             col = list(program = colorRamp2(range(pe_pc_program_order), hcl_palette = "Inferno", reverse = TRUE)),
-                             which = "row")
-    
-    col_fun <- colorRamp2(range(pe_pc), hcl_palette = "Blues", reverse = TRUE)
-    
-    dend <- as.dendrogram(hclust(dist(t(pe_pc))))
-    ht_pe_pc <- Heatmap(pe_pc, left_annotation = haL, top_annotation = haT,
-                        name = "Program Usage - Normalized to 1",
-                        cluster_columns = TRUE, 
-                        cluster_rows = TRUE, 
-                        col = col_fun, 
-                        show_row_names = TRUE, show_column_names = FALSE)
-    
-    pdf(paste(save_path, file_name, sep = ""), width = file_width, height = file_height)
-    draw(ht_pe_pc, padding = unit(c(3, 3, 3, 3), "cm"))
-    dev.off()
-    
-    save.image(paste(save_path, "program_enrichment_per_cell.RData", sep = ""))
-  }
-  else{
-    pe_pc_long <- as.data.frame(t(pe_pc))
-    colnames(pe_pc_long) <- program_annotations
-    pe_pc_long <- cbind(pe_pc_long, pe_pc_annot[1:3])
-    pe_pc_long$spot <- rownames(pe_pc_long)
-    pe_pc_long <- pe_pc_long %>% 
-      pivot_longer(!c(spot, GCAR, CD274, PDCD1), names_to = "program")
-    
-    pe_pc_long$sample <- sapply(strsplit(pe_pc_long$spot, "_"), "[", 1)
-    pe_pc_long$tissue <- pe_pc_long$sample
-    pe_pc_long$tissue <- sub("bS1", "bS", pe_pc_long$tissue)
-    pe_pc_long$tissue <- sub("bS2", "bS", pe_pc_long$tissue)
-    
-    pe_pc_long$gene <- paste(pe_pc_long$GCAR, pe_pc_long$PDCD1, pe_pc_long$CD274, sep = "_")
-    
-    cols <- c("#000000", "#696969", "#556b2f", "#8b0000", "#483d8b", "#008000",
-              "#008b8b", "#000080", "#8fbc8f", "#8b008b", "#b03060", "#ff0000", 
-              "#ffa500", "#00ff00", "#8a2be2", "#00ff7f", "#00ffff", "#00bfff", 
-              "#0000ff", "#adff2f", "#b0c4de", "#ff00ff", "#1e90ff", "#fa8072",
-              "#ffff54", "#90ee90", "#ff1493", "#ee82ee", "#ffdead", "#ffb6c1")
-    
-    plot_title <- paste("K", ncol(usage_norm), "Program Enrichment", sep = " ")
-    
-    pdf(file = paste(save_path, file_name, sep = ""), height = file_height, width = file_width)
-    p1 <- ggplot(pe_pc_long, aes(x = spot, y = value, fill = program)) +
-      geom_col(colour = "black", position = "fill") + theme_classic2() +
-      labs(title = plot_title, x = "Spots", y = "Usage Value", color = "program") +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = "black"),
-            axis.text.y = element_text(colour="black"), plot.margin = unit(c(1,10,1,1), "pt")) +
-      theme(plot.margin = unit(c(1,1,1,1), "cm")) + scale_y_continuous(expand = c(0,0)) +
-      scale_fill_manual(values = cols)
-    print(p1)
-    dev.off()
-    
-    pdf(file = paste(save_path, sub(".pdf", "_split_sample.pdf", file_name), sep = ""), height = file_height, width = file_width)
-    p2 <- ggplot(pe_pc_long, aes(x = spot, y = value, fill = program)) +
-      geom_col(colour = "black", position = "fill") + theme_classic2() +
-      labs(title = plot_title, x = "Spots", y = "Usage Value", color = "program") +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = "black"),
-            axis.text.y = element_text(colour="black"), plot.margin = unit(c(1,10,1,1), "pt")) +
-      theme(plot.margin = unit(c(1,1,1,1), "cm")) + scale_y_continuous(expand = c(0,0)) +
-      scale_fill_manual(values = cols) + facet_grid(~ sample, scales = "free_x", space = "free_x")
-    print(p2)
-    dev.off()
-    
-    pdf(file = paste(save_path, sub(".pdf", "_split_tissue.pdf", file_name), sep = ""), height = file_height, width = file_width)
-    p3 <- ggplot(pe_pc_long, aes(x = spot, y = value, fill = program)) +
-      geom_col(colour = "black", position = "fill") + theme_classic2() +
-      labs(title = plot_title, x = "Spots", y = "Usage Value", color = "program") +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = "black"),
-            axis.text.y = element_text(colour="black"), plot.margin = unit(c(1,10,1,1), "pt")) +
-      theme(plot.margin = unit(c(1,1,1,1), "cm")) + scale_y_continuous(expand = c(0,0)) +
-      scale_fill_manual(values = cols) + facet_grid(~ tissue, scales = "free_x", space = "free_x")
-    print(p3)
-    dev.off()
-    
-    pdf(file = paste(save_path, sub(".pdf", "_split_gene.pdf", file_name), sep = ""), height = file_height, width = file_width)
-    p4 <- ggplot(pe_pc_long, aes(x = spot, y = value, fill = program)) +
-      geom_col(colour = "black", position = "fill") + theme_classic2() +
-      labs(title = plot_title, x = "Spots", y = "Usage Value", color = "program",
-           subtitle = "Gene Split Order is Expression of GCAR_PDCD1_CD274") +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1, colour = "black"),
-            axis.text.y = element_text(colour="black"), plot.margin = unit(c(1,10,1,1), "pt")) +
-      theme(plot.margin = unit(c(1,1,1,1), "cm")) + scale_y_continuous(expand = c(0,0)) +
-      scale_fill_manual(values = cols) + facet_grid(~ gene, scales = "free_x")
-    print(p4)
-    dev.off()
-  }
-}
-
 # Neighbourhood Analysis Functions ----
 seurat_object_coords <- function(){
   # Get spot centroids from the 3 samples
@@ -1001,7 +873,7 @@ if (COMPUTE_MGS){
   gep_df <- ranked_spectra(spectra_df, num_genes = 1000)
   
   # 2.2 Load the GMT file ---- 
-  geneset <- read.GMT(paste("../datasets/GMT/", GMT_FILE, sep = ""))
+  geneset <- read.GMT(GMT_FILE)
   
   # 2.3 Compute the regular and detailed marker gene scores ----
   final_df_simple <- marker_gene_score(gep_df, geneset, scale = FALSE, 
@@ -1121,21 +993,24 @@ if (gPROFILER_RESULTS){
 # Load the Seurat Objects ----
 rm(list = setdiff(setdiff(ls(), lsf.str()), program_var_names))
 
-primary_no_addon_path <- "02_Visium_HD/04_datasets/01_seurat_objects/primary_sample_seurat_object.rds"
-biopsy_s1_path <- paste("/gpnmb_car/datasets/SPSQ_biopsy_S1_DS_RA_M/", "outs/", sep = '/')
-biopsy_s2_path <- paste("/gpnmb_car/datasets/SPSQ_biopsy_S2_DS_RA_M/", "outs/", sep = '/')
-xenograft_no_addon_path <- paste("/gpnmb_car/datasets/SPSQ_xenograft_HD/", "outs/", sep = '/')
-primary_no_addon <- Load10X_Spatial(data.dir = primary_no_addon_path, bin.size = c(24))
-biopsy_s1 <- Load10X_Spatial(data.dir = biopsy_s1_path, bin.size = c(24))
-biopsy_s2 <- Load10X_Spatial(data.dir = biopsy_s2_path, bin.size = c(24))
-xenograft_no_addon <- Load10X_Spatial(data.dir = xenograft_no_addon_path, bin.size = c(24))
+# Classical loading
+# primary_no_addon <- Load10X_Spatial(data.dir = primary_no_addon_path, bin.size = c(24))
+# biopsy_s1 <- Load10X_Spatial(data.dir = biopsy_s1_path, bin.size = c(24))
+# biopsy_s2 <- Load10X_Spatial(data.dir = biopsy_s2_path, bin.size = c(24))
+# xenograft_no_addon <- Load10X_Spatial(data.dir = xenograft_no_addon_path, bin.size = c(24))
 
-combined <- merge(primary_no_addon, y=c(biopsy_s1, biopsy_s2),
-                  add.cell.ids = c("pNA", "bS1", "bS2"),
-                  project = "combined_samples")
-# combined <- merge(primary_no_addon, y=c(biopsy_s1, biopsy_s2, xenograft_no_addon), 
-#                   add.cell.ids = c("pNA", "bS1", "bS2", "xeno"), 
+# Reviewer loading
+primary_no_addon <- readRDS("02_Visium_HD/04_datasets/01_seurat_objects/primary_sample_seurat_object.rds")
+biopsy_s1 <- readRDS("02_Visium_HD/04_datasets/01_seurat_objects/biopsy_sample_1_seurat_object.rds")
+biopsy_s2 <- readRDS("02_Visium_HD/04_datasets/01_seurat_objects/biopsy_sample_2_seurat_object.rds")
+xenograft_no_addon <- readRDS("02_Visium_HD/04_datasets/01_seurat_objects/xenograft_sample_seurat_object.rds")
+
+# combined <- merge(primary_no_addon, y=c(biopsy_s1, biopsy_s2),
+#                   add.cell.ids = c("pNA", "bS1", "bS2"),
 #                   project = "combined_samples")
+combined <- merge(primary_no_addon, y=c(biopsy_s1, biopsy_s2, xenograft_no_addon),
+                  add.cell.ids = c("pNA", "bS1", "bS2", "xeno"),
+                  project = "combined_samples")
 combined_layers <- JoinLayers(combined)
 combined_layers <- subset(combined_layers, nCount_Spatial.024um > 0)
 
@@ -1154,15 +1029,6 @@ if (PROGRAM_ENRICHMENT){
                      file_height = 10, file_width = 12,
                      program_annotation = program_annotation)
   
-  # 1.2 Heatmap program enrichment ----
-  program_enrichment_pc(usage_norm, plot = "heatmap", subset_data = TRUE,
-                        file_name = paste("K", RANK, "_Program_Enrichment_Per_Cell.pdf", sep = ""), 
-                        file_height = 30, file_width = 100)
-  
-  # 1.3 This only produces a bar plot of the programs in the GCAR1, PDL1, and PD1+ spots ----
-  program_enrichment_pc(usage_norm, plot = "barplot", subset_data = TRUE,
-                        file_name = paste("K", RANK, "_Program_Enrichment_Per_Cell_Barplot.pdf", sep = ""), 
-                        file_height = 30, file_width = 100)
 }
 
 # 2.2 Panel Gene Expression  ----
@@ -1171,8 +1037,6 @@ if (PROGRAM_GENE_EXPRESSION){
   rm(list = setdiff(setdiff(ls(), lsf.str()), program_var_names))
   save_path <- paste(SAVE_FOLDER, "K", RANK, "/program_gene_expression/", sep = "")
   create_folder(save_path)
-  
-  combined_count_table <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts)))
   
   # 2.1 Make a plot showcasing gene expression across programs for resistance genes ----
   binarized_usage <- ifelse(usage_norm < 0.05, 0, 1)
@@ -1190,6 +1054,7 @@ if (PROGRAM_GENE_EXPRESSION){
                                           "KLRB1", "CLEC2D",
                                           "FAS", "FASLG"))
   gene_panel <- resistance_gene_panel
+  combined_count_table <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts[unlist(gene_panel$gene) ,])))
   
   binarized_usage_spots <- rownames(binarized_usage[rowSums(binarized_usage) > 0, ])
   combined_count_table_subset <- combined_count_table[, colnames(combined_count_table) %in% gene_panel$gene]
@@ -1316,6 +1181,7 @@ if (PROGRAM_GENE_EXPRESSION){
                                                "FAS", "FASLG"))
   
   gene_panel <- resistance_gene_panel
+  combined_count_table <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts[unlist(gene_panel$gene) ,])))
   
   binarized_usage_spots <- rownames(binarized_usage[rowSums(binarized_usage) > 0, ])
   combined_count_table_subset <- combined_count_table[, colnames(combined_count_table) %in% gene_panel$gene]
@@ -1435,23 +1301,20 @@ if (PROGRAM_GENE_EXPRESSION){
 rm(list = setdiff(setdiff(ls(), lsf.str()), program_var_names))
 
 union_cell_coordinate <- seurat_object_coords()
-union_cell_coordinate <- union_cell_coordinate[rownames(union_cell_coordinate) %in% rownames(usage_norm),]
-combined_count_table <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts)))
+# union_cell_coordinate <- union_cell_coordinate[rownames(union_cell_coordinate) %in% rownames(usage_norm),]
 combined_metadata_table <- as.data.frame(combined_layers@meta.data)
 options(future.globals.maxSize= 891289600)
 
 # Check if the spot neighbours file exists, if not, then make it and save it 
-if(!file.exists(paste(SAVE_FOLDER, "spot_neighbours_df.rds", sep = ""))){
+if(!file.exists("02_Visium_HD/04_datasets/05_bin_neighbours/spot_neighbours_df.rds")){
   spot_neighbours_df <- program_neighbours(rownames(union_cell_coordinate), union_cell_coordinate)
   saveRDS(spot_neighbours_df, file = paste(SAVE_FOLDER, "spot_neighbours_df.rds", sep = ""))
-} else{spot_neighbours_df <- readRDS(paste(SAVE_FOLDER, "spot_neighbours_df.rds", sep = ""))}
-if(!file.exists(paste(SAVE_FOLDER, "spot_neighbours_df_wo_overlaps.rds", sep = ""))){
+} else{spot_neighbours_df <- readRDS("02_Visium_HD/04_datasets/05_bin_neighbours/spot_neighbours_df.rds")}
+if(!file.exists("02_Visium_HD/04_datasets/05_bin_neighbours/spot_neighbours_df_wo_overlaps.rds")){
   spot_neighbours_df_wo_overlaps <- remove_overlapping_neighbours(spot_neighbours_df)
   saveRDS(spot_neighbours_df_wo_overlaps, file = paste(SAVE_FOLDER, "spot_neighbours_df_wo_overlaps.rds", sep = ""))
-} else{spot_neighbours_df_wo_overlaps <- readRDS(paste(SAVE_FOLDER, "spot_neighbours_df_wo_overlaps.rds", sep = ""))}
+} else{spot_neighbours_df_wo_overlaps <- readRDS("02_Visium_HD/04_datasets/05_bin_neighbours/spot_neighbours_df_wo_overlaps.rds")}
 
-combined_count_table <- combined_count_table[rownames(combined_count_table) %in% rownames(usage_norm),]
-combined_metadata_table <- combined_metadata_table[rownames(combined_metadata_table) %in% rownames(usage_norm),]
 program_var_names <- c(ls(), "program_var_names")
 
 # 3.1 Neighbourhood of each pair of programs ----
@@ -1463,13 +1326,15 @@ if (NEIGHBORHOOD_ANALYSIS_PROGRAM_PAIRS){
   binarized_gep <- usage_norm
   binarized_gep[binarized_gep >= Binarized_threshold] <- 1; binarized_gep[binarized_gep < Binarized_threshold] <- 0
   
-  # Parallalized ----
+  # Parallelized ----
+  # Subset to just program 9 and 10 for ease of running
   loaded_packages <- setdiff(loadedNamespaces(), c("base", "stats", "utils", "graphics", "grDevices", "methods", "datasets"))
   combinations <- combn(seq_len(ncol(usage_norm)), 2)
   program_combinations <- data.frame(program_one = combinations[1, ], program_two = combinations[2, ])
+  program_combinations <- program_combinations[85,]
   
   # Set up the parallel backend with the number of available cores
-  num_cores <- parallelly::availableCores() - 1  # leave one core free
+  num_cores <- 1  # leave one core free
   cl <- makeCluster(num_cores)
   registerDoParallel(cl)
   
@@ -1574,13 +1439,6 @@ if (NEIGHBORHOOD_ANALYSIS_PROGRAM_PAIRS){
     
     # 1.8 Plotting ----
     # 1.8.1 Create the annotations ----
-    # Get the expression data of the spots being processed
-    combined_count_table_subset <- combined_count_table[gep_pos_spots, c("CD3D", "CD3E", "CD3G", "CD4", "CD8A", 
-                                                                         "GCAR", "TRAC", "TRBC1", "TRBC2", "TRDC", 
-                                                                         "TRGC1", "TRGJP1", "PTCRA", "THY1", "GZMA", 
-                                                                         "GZMB", "GZMH", "GZMK", "PRF1")]
-    spot_neighbour_programs_df_flat_annot <- cbind(spot_neighbour_programs_df_flat_annot, combined_count_table_subset)
-    
     GEP_col_names <- setNames(c("#891A53", "#1E7D42", "#5456C9"), c(gep_pos_p1_name, gep_pos_p2_name, gep_post_p1_p2_name))
     haT <- HeatmapAnnotation(sample = spot_neighbour_programs_df_flat_annot$sample,
                              GEP = spot_neighbour_programs_df_flat_annot$GEP,
@@ -1588,50 +1446,12 @@ if (NEIGHBORHOOD_ANALYSIS_PROGRAM_PAIRS){
                              nr_neigh_r1 = spot_neighbour_programs_df_flat_annot$nr_neigh_r1,
                              nr_neigh_r2 = spot_neighbour_programs_df_flat_annot$nr_neigh_r2,
                              nr_neigh_r3 = spot_neighbour_programs_df_flat_annot$nr_neigh_r3,
-                             CD3D = spot_neighbour_programs_df_flat_annot$CD3D,
-                             CD3E = spot_neighbour_programs_df_flat_annot$CD3E,
-                             CD3G = spot_neighbour_programs_df_flat_annot$CD3G,
-                             CD4 = spot_neighbour_programs_df_flat_annot$CD4,
-                             CD8A = spot_neighbour_programs_df_flat_annot$CD8A,
-                             GCAR = spot_neighbour_programs_df_flat_annot$GCAR,
-                             TRAC = spot_neighbour_programs_df_flat_annot$TRAC,
-                             TRBC1 = spot_neighbour_programs_df_flat_annot$TRBC1,
-                             TRBC2 = spot_neighbour_programs_df_flat_annot$TRBC2,
-                             TRDC = spot_neighbour_programs_df_flat_annot$TRDC,
-                             TRGC1 = spot_neighbour_programs_df_flat_annot$TRGC1,
-                             TRGJP1 = spot_neighbour_programs_df_flat_annot$TRGJP1,
-                             PTCRA = spot_neighbour_programs_df_flat_annot$PTCRA,
-                             THY1 = spot_neighbour_programs_df_flat_annot$THY1,
-                             GZMA = spot_neighbour_programs_df_flat_annot$GZMA,
-                             GZMB = spot_neighbour_programs_df_flat_annot$GZMB,
-                             GZMH = spot_neighbour_programs_df_flat_annot$GZMH,
-                             GZMK = spot_neighbour_programs_df_flat_annot$GZMK,
-                             PRF1 = spot_neighbour_programs_df_flat_annot$PRF1,
                              col = list(sample = SAMPLE_COLS,
                                         GEP = GEP_col_names,
                                         nr_neigh_r0 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r0), range(spot_neighbour_programs_df_flat_annot$nr_neigh_r0)+1), hcl_palette = "YlOrRd", reverse = TRUE),
                                         nr_neigh_r1 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r1), hcl_palette = "YlOrRd", reverse = TRUE),
                                         nr_neigh_r2 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r2), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        nr_neigh_r3 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r3), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        CD3D = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$CD3D), range(spot_neighbour_programs_df_flat_annot$CD3D) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        CD3E = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$CD3E), range(spot_neighbour_programs_df_flat_annot$CD3E) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        CD3G = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$CD3G), range(spot_neighbour_programs_df_flat_annot$CD3G) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        CD4 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$CD4), range(spot_neighbour_programs_df_flat_annot$CD4) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        CD8A = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$CD8A), range(spot_neighbour_programs_df_flat_annot$CD8A) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        GCAR = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$GCAR), 2), hcl_palette = "Reds", reverse = TRUE),
-                                        TRAC = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$TRAC), range(spot_neighbour_programs_df_flat_annot$TRAC) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        TRBC1 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$TRBC1), range(spot_neighbour_programs_df_flat_annot$TRBC1) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        TRBC2 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$TRBC2), range(spot_neighbour_programs_df_flat_annot$TRBC2) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        TRDC = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$TRDC), range(spot_neighbour_programs_df_flat_annot$TRDC) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        TRGC1 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$TRGC1), range(spot_neighbour_programs_df_flat_annot$TRGC1) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        TRGJP1 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$TRGJP1), range(spot_neighbour_programs_df_flat_annot$TRGJP1) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        PTCRA = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$PTCRA), range(spot_neighbour_programs_df_flat_annot$PTCRA) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        THY1 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$THY1), range(spot_neighbour_programs_df_flat_annot$THY1) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        GZMA = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$GZMA), range(spot_neighbour_programs_df_flat_annot$GZMA) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        GZMB = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$GZMB), range(spot_neighbour_programs_df_flat_annot$GZMB) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        GZMH = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$GZMH), range(spot_neighbour_programs_df_flat_annot$GZMH) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        GZMK = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$GZMK), range(spot_neighbour_programs_df_flat_annot$GZMK) + 1), hcl_palette = "Reds", reverse = TRUE),
-                                        PRF1 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$PRF1), range(spot_neighbour_programs_df_flat_annot$PRF1) + 1), hcl_palette = "Reds", reverse = TRUE)),
+                                        nr_neigh_r3 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r3), hcl_palette = "YlOrRd", reverse = TRUE)),
                              which = "col")
     
     program_radius_comb_df$Var2 <- as.numeric(program_radius_comb_df$Var2)
@@ -1656,60 +1476,7 @@ if (NEIGHBORHOOD_ANALYSIS_PROGRAM_PAIRS){
     rownames(spot_neighbour_programs_df_flat_plot) <- paste(program_annotations, c(rep(0, RANK), rep(75, RANK), rep(150, RANK), rep(225, RANK)), sep = "_")
     spot_neighbour_programs_df_flat_plot <- as.matrix(spot_neighbour_programs_df_flat_plot)
     
-    # 1.8.2 Plot the spot_neighbour_programs_df_flat ----
-    ht_combined <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
-                           name = "Mean of Neighbour Program",
-                           cluster_columns = TRUE, cluster_rows = FALSE, col = col_fun, 
-                           show_row_names = TRUE, show_column_names = FALSE,
-                           column_split = col_spliter, row_split = row_spliter)
-    ht_combined_GEP_split <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
-                                     name = "Mean of Neighbour Program",
-                                     cluster_columns = TRUE, cluster_rows = FALSE, col = col_fun, 
-                                     show_row_names = TRUE, show_column_names = FALSE,
-                                     column_split = col_spliter_GEP, row_split = row_spliter)
-    ht_combined_row_clust <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
-                                     name = "Mean of Neighbour Program",
-                                     cluster_columns = TRUE, cluster_rows = TRUE, col = col_fun, 
-                                     show_row_names = TRUE, show_column_names = FALSE,
-                                     column_split = col_spliter)
-    ht_combined_row_clust_GEP_split <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
-                                               name = "Mean of Neighbour Program",
-                                               cluster_columns = TRUE, cluster_rows = TRUE, col = col_fun, 
-                                               show_row_names = TRUE, show_column_names = FALSE,
-                                               column_split = col_spliter_GEP)
-    ht_combined_col_clust <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
-                                     name = "Mean of Neighbour Program",
-                                     cluster_columns = TRUE, cluster_rows = FALSE, col = col_fun, 
-                                     show_row_names = TRUE, show_column_names = FALSE,
-                                     row_split = row_spliter)
-    ht_combined_clust <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
-                                 name = "Mean of Neighbour Program",
-                                 cluster_columns = TRUE, cluster_rows = TRUE, col = col_fun, 
-                                 show_row_names = TRUE, show_column_names = FALSE)
-    pdf(paste(save_path, gep_post_p1_p2_name, "_T", usage_threshold, "_Binarized_T", Binarized_threshold, "_Mean_Neighbour_Programs_No_Overlaps.pdf", sep = ""), width = 60, height = 30)
-    draw(ht_combined, padding = unit(c(3, 3, 3, 3), "cm"))
-    draw(ht_combined_GEP_split, padding = unit(c(3, 3, 3, 3), "cm"))
-    draw(ht_combined_row_clust, padding = unit(c(3, 3, 3, 3), "cm"))
-    draw(ht_combined_row_clust_GEP_split, padding = unit(c(3, 3, 3, 3), "cm"))
-    draw(ht_combined_col_clust, padding = unit(c(3, 3, 3, 3), "cm"))
-    draw(ht_combined_clust, padding = unit(c(3, 3, 3, 3), "cm"))
-    dev.off()
-    
     # 1.8.3 Plot but w/o the gene expression tracks ----
-    haT <- HeatmapAnnotation(sample = spot_neighbour_programs_df_flat_annot$sample,
-                             GEP = spot_neighbour_programs_df_flat_annot$GEP,
-                             nr_neigh_r0 = spot_neighbour_programs_df_flat_annot$nr_neigh_r0,
-                             nr_neigh_r1 = spot_neighbour_programs_df_flat_annot$nr_neigh_r1,
-                             nr_neigh_r2 = spot_neighbour_programs_df_flat_annot$nr_neigh_r2,
-                             nr_neigh_r3 = spot_neighbour_programs_df_flat_annot$nr_neigh_r3,
-                             col = list(sample = SAMPLE_COLS,
-                                        GEP = GEP_col_names,
-                                        nr_neigh_r0 = colorRamp2(c(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r0), range(spot_neighbour_programs_df_flat_annot$nr_neigh_r0)+1), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        nr_neigh_r1 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r1), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        nr_neigh_r2 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r2), hcl_palette = "YlOrRd", reverse = TRUE),
-                                        nr_neigh_r3 = colorRamp2(range(spot_neighbour_programs_df_flat_annot$nr_neigh_r3), hcl_palette = "YlOrRd", reverse = TRUE)),
-                             which = "col")
-    
     ht_combined <- Heatmap(spot_neighbour_programs_df_flat_plot, left_annotation = haL, top_annotation = haT,
                            name = "Mean of Neighbour Program",
                            cluster_columns = TRUE, cluster_rows = FALSE, col = col_fun, 
@@ -1869,7 +1636,7 @@ if (INSIDE_OUTSIDE_T_CELL){
   # 1.0 Clear existing non-function variables, set the save folders (create them if they doesn't exist) ----
   rm(list = setdiff(setdiff(ls(), lsf.str()), program_var_names))
   save_path <- paste(SAVE_FOLDER, "K", RANK, "/inside_outside/T_Cell/", sep = "")
-  create_folder(paste(save_path, "diagnostic/", sep = ""))
+  create_folder(save_path)
   
   # 1.1 Get the T-cells, the spot coordinates from the 3 samples, and their intersection ----
   T_cell_so <- subset(x = combined_layers, subset = CD3D | CD3E | CD3G | CD4 | CD8A | GCAR, slot = "counts")
@@ -1900,7 +1667,7 @@ if (INSIDE_OUTSIDE_T_CELL){
   }
   
   # 1.4 Merge the spots with specific gene counts ----
-  count_table_subset <- combined_count_table[, INSIDE_OUTSIDE_GENES$gene]
+  count_table_subset <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts[INSIDE_OUTSIDE_GENES$gene ,])))
   
   within_outside_df <- merge(combined_metadata_table_duplicate, count_table_subset, by = "row.names")
   colnames(within_outside_df)[1] <- "spot"
@@ -2041,148 +1808,16 @@ if (INSIDE_OUTSIDE_NICHE){
   # 2.0 Clear existing non-function variables, set the save folders (create them if they doesn't exist) ----
   rm(list = setdiff(setdiff(ls(), lsf.str()), program_var_names))
   save_path <- paste(SAVE_FOLDER, "K", RANK, "/inside_outside/niche/custom_split/", sep = "")
-  create_folder(paste(save_path, "diagnostic/", sep = ""))
+  create_folder(save_path)
   
   # 2.1 Load the data ----
-  niche_spot_ids <- readRDS(file = "../tmp/analysis_plots/K15/neighbourhood_analysis/Programs/GEP_9_10/GEP_9_10_T0.05_Binarized_T0.05_niche_spot_ids_split_custom_V2.rds")
-  spot_neighbour_programs_df_flat_plot <- readRDS(file = "../tmp/analysis_plots/K15/neighbourhood_analysis/Programs/GEP_9_10/GEP_9_10_T0.05_Binarized_T0.05_spot_neighbour_programs_df_flat_plot.rds")
+  niche_spot_ids <- readRDS(file = "02_Visium_HD/02_analysis/tmp/K15/neighbourhood_analysis/Programs/GEP_9_10/GEP_9_10_T0.05_Binarized_T0.05_niche_spot_ids_split_custom_V2.rds")
+  spot_neighbour_programs_df_flat_plot <- readRDS(file = "02_Visium_HD/02_analysis/tmp/K15/neighbourhood_analysis/Programs/GEP_9_10/GEP_9_10_T0.05_Binarized_T0.05_spot_neighbour_programs_df_flat_plot.rds")
   
   # Subset to the bS1 and bS2 spots and remove any spots that belong to niche 1
   niche_spot_ids_custom <- niche_spot_ids[c(1,4,5)]
   
-  # 2.2 Visualize the point's we're sub-setting ----
-  pdf(paste(save_path, "Subset_heatmap.pdf", sep = ""), height = 60, width = 60)
-  draw(Heatmap(spot_neighbour_programs_df_flat_plot[,colnames(spot_neighbour_programs_df_flat_plot) %in% unlist(niche_spot_ids_custom)], 
-               cluster_columns = TRUE, cluster_rows = FALSE,
-               show_row_names = FALSE, show_column_names = FALSE), 
-       padding = unit(c(3, 3, 3, 3), "cm"))
-  dev.off()
-  
-  # 2.3 Inside outside analysis ----
-  for (niche in names(niche_spot_ids_custom)){
-    # 3.1 Get the T-cells, the spot coordinates from the 3 samples, and their intersection ----
-    T_cell_so <- subset(x = combined_layers, subset = CD3D | CD3E | CD3G | CD4 | CD8A | GCAR, slot = "counts")
-    T_cell_spots <- rownames(T_cell_so@meta.data)
-    niche_spots <- niche_spot_ids_custom[[niche]]
-    dp_spots <- intersect(T_cell_spots, niche_spots)
-    dp_spots <- niche_spots
-    
-    # Get the spot names and merge them with the union_cell_coordinate dataframe
-    dp_spots <- intersect(dp_spots, rownames(union_cell_coordinate))
-    
-    # 3.2 Subset the spot neighbors ----
-    spot_neighbours_df_subset <- spot_neighbours_df[spot_neighbours_df$spot_of_interest %in% dp_spots,]
-    
-    # 3.3 Calculate the inside and outside cells across radii ----
-    combined_metadata_table_duplicate <- combined_metadata_table
-    new_columns <- as.vector(unique(as.character(spot_neighbours_df_subset$r)))
-    new_columns <- paste("dist", new_columns, sep = "_")
-    combined_metadata_table_duplicate[, new_columns] <- "outside"
-    
-    # Set the neighbours of a spot to be "inside", else make them "outside"
-    for (radii in unique(spot_neighbours_df_subset$r)){
-      # Get all the neighbours at a given radius
-      radii_neighs <- unlist(spot_neighbours_df_subset[spot_neighbours_df_subset$r == radii, "neighbours"])
-      
-      # Set the column name to set cells to "inside"
-      radii_name <- paste("dist", radii, sep = "_")
-      
-      # Set the cells to "inside"
-      combined_metadata_table_duplicate[rownames(combined_metadata_table_duplicate) %in% radii_neighs, radii_name] <- "inside"
-    }
-    
-    # Remove the other niche spots from this analysis
-    niche_spots_to_remove <- unlist(niche_spot_ids_custom[names(niche_spot_ids_custom) != niche])
-    combined_metadata_table_duplicate <- combined_metadata_table_duplicate[!rownames(combined_metadata_table_duplicate) 
-                                                                           %in% niche_spots_to_remove,]
-    
-    # 3.4 Merge the spots with specific gene counts ----
-    count_table_subset <- combined_count_table[, INSIDE_OUTSIDE_GENES$gene]
-    
-    within_outside_df <- merge(combined_metadata_table_duplicate, count_table_subset, by = "row.names")
-    colnames(within_outside_df)[1] <- "spot"
-    
-    within_outside_df$tissue <- paste(sapply(strsplit(within_outside_df$spot, "_"), "[", 1))
-    within_outside_df$tissue <- sub("bS1", "bS", within_outside_df$tissue)
-    within_outside_df$tissue <- sub("bS2", "bS", within_outside_df$tissue)
-   
-    # Only keep the tissue of interest
-    within_outside_df <- within_outside_df[within_outside_df$tissue == strsplit(sub(",", "_", niche), "_")[[1]][2],]
-    
-    # 3.4.1 Spread the data ----
-    within_outside_df_spread <- within_outside_df %>%
-      group_by(spot) %>%
-      pivot_longer(c(dist_0, dist_75, dist_150, dist_225), names_to = "radius", values_to = "location") %>%
-      pivot_longer(INSIDE_OUTSIDE_GENES$gene, names_to = "gene", values_to = "expression")
-    
-    # 3.5 Histogram of the fraction of PDL1+ bins in the inside vs outside bins ----
-    histo_plot_data <- within_outside_df_spread %>%
-      group_by(tissue, radius, location, gene) %>%
-      summarise(total_spots = n(), nr_gene_pos_bins = sum(expression > 0), gene_pos_bin_mean_exp = mean(expression[expression > 0])) %>%
-      mutate(proportion_gene_pos_bins = nr_gene_pos_bins / total_spots, 
-             proportion_gene_pos_bin_mean_exp = gene_pos_bin_mean_exp / nrow(combined_metadata_table_duplicate)) %>% 
-      mutate(percent_gene_pos_bins = proportion_gene_pos_bins * 100, 
-             percent_gene_pos_bin_mean_exp = proportion_gene_pos_bin_mean_exp * 100) %>%
-      ungroup()
-    histo_plot_data[is.na(histo_plot_data)] <- 0
-    colnames(histo_plot_data)[1] <- "tissue"
-    histo_plot_data$split <- paste(histo_plot_data$tissue, histo_plot_data$location)
-    histo_plot_data$radius <- factor(histo_plot_data$radius, levels = c("dist_0", "dist_75", "dist_150", "dist_225"))
-    
-    # Modifications for plotting ----
-    histo_plot_data$split <- sub("bS", "Biopsy", histo_plot_data$split)
-    histo_plot_data$split <- sub("pNA", "Primary", histo_plot_data$split)
-    histo_plot_data$split <- sub("xeno", "Xenograft", histo_plot_data$split)
-    histo_plot_data$split <- sub("inside", "Inside", histo_plot_data$split)
-    histo_plot_data$split <- sub("outside", "Outside", histo_plot_data$split)
-    colnames(histo_plot_data)[12] <- "Split"
-    
-    histo_plot_data$radius <- sub("dist_0", "0", histo_plot_data$radius)
-    histo_plot_data$radius <- sub("dist_75", "1", histo_plot_data$radius)
-    histo_plot_data$radius <- sub("dist_150", "2", histo_plot_data$radius)
-    histo_plot_data$radius <- sub("dist_225", "3", histo_plot_data$radius)
-    histo_plot_data$radius <- factor(histo_plot_data$radius, levels = c("0", "1", "2", "3"))
-    
-    histo_plot_data$tissue <- sub("bS", "Biopsy", histo_plot_data$tissue)
-    histo_plot_data$tissue <- sub("pNA", "Primary", histo_plot_data$tissue)
-    histo_plot_data$tissue <- sub("_", " Niche ", histo_plot_data$tissue)
-    histo_plot_data$tissue <- sub("xeno", "Xenograft", histo_plot_data$tissue)
-    
-    histo_plot_data$Split_V2 <- paste(histo_plot_data$location, histo_plot_data$radius, sep = "_")
-    
-    histo_plot_data <- histo_plot_data[histo_plot_data$radius == 0,]
-    
-    # 3.7 Plotting ----
-    # 3.7.1 Plot the histogram ----
-    pdf(paste(save_path, "Inside_Outside_Gene_Expression_Histogram_", sub(",", "_", niche), "_split_3_subset_temp.pdf", sep = ""), width = 30, height = 10)
-    for (i in seq_len(nrow(INSIDE_OUTSIDE_GENES))){
-      pair <- INSIDE_OUTSIDE_GENES$category[i]
-      gene <- INSIDE_OUTSIDE_GENES$gene[i]
-      
-      # Subset the histogram data to the gene of interest
-      temp_plot_data <- histo_plot_data[histo_plot_data$gene == gene,]
-      
-      # Create the histogram ----
-      gp <- ggplot(temp_plot_data, aes(x = radius, y = proportion_gene_pos_bins, fill = Split_V2)) +
-        geom_bar(stat="identity", color = "black", position = "dodge", width = .8) + theme_classic2() +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1, colour="black"), 
-              axis.text.y=element_text(colour="black"), text = element_text(size = 20), 
-              legend.position = "bottom") +
-        labs(x = paste("Distance From GEP_9_10, Niche: ", niche, sep = ""), 
-             y = "Proportion of Gene+ Spots\nof Total Spots Per Condition",
-             title = paste(gene, pair, sep = ": "),
-             subtitle = paste("Fraction of Adjacent and Distant Bins GEP_9_10, Niche: ", niche, sep = "")) + 
-        scale_y_continuous(expand = c(0,0)) +  facet_wrap(~ tissue + location, ncol = 6) +
-        scale_fill_manual(values = c("#2b465e", "#607486", "#95a2af", "#cad1d7", 
-                                     "#d2c691", "#ddd4ad", "#e9e2c8", "#f4f1e3")) +
-        guides(fill = guide_legend(ncol = 4, byrow = TRUE))
-      
-      print(gp)
-    }
-    dev.off()
-  }
-  
-  # 2.4 Contingency table ----
+  # 2.2 Contingency table ----
   # Retrieve the R0 data
   temporary_df <- data.frame()
   for (niche in names(niche_spot_ids_custom)){
@@ -2220,7 +1855,7 @@ if (INSIDE_OUTSIDE_NICHE){
                                                                            %in% niche_spots_to_remove,]
     
     # 4.4 Merge the spots with specific gene counts ----
-    count_table_subset <- combined_count_table[, INSIDE_OUTSIDE_GENES$gene]
+    count_table_subset <- as.data.frame(t(as.matrix(combined_layers@assays$Spatial.024um$counts[INSIDE_OUTSIDE_GENES$gene ,])))
     
     within_outside_df <- merge(combined_metadata_table_duplicate, count_table_subset, by = "row.names")
     colnames(within_outside_df)[1] <- "spot"
@@ -2279,7 +1914,7 @@ if (INSIDE_OUTSIDE_NICHE){
     temporary_df <- rbind(temporary_df, histo_plot_data)
   }
   
-  # 2.5 Data Manipulation ----
+  # 2.3 Data Manipulation ----
   temporary_df_final <- temporary_df[,c(14,3,4,6,5)]
   colnames(temporary_df_final)[4] <- "positive"
   temporary_df_final$negative <- temporary_df_final$total_spots - temporary_df_final$positive
@@ -2287,13 +1922,11 @@ if (INSIDE_OUTSIDE_NICHE){
   temporary_df_final <- temporary_df_final[temporary_df_final$location == "inside",]
   temporary_df_final$niche <- sub(",", "_", temporary_df_final$niche)
   temporary_df_final$niche <- paste(temporary_df_final$niche, temporary_df_final$location, sep = "_")
-  write.table(temporary_df_final, paste(save_path, "r0_final_table_split_3_subset.tsv", sep = ""), quote = FALSE, sep = "\t")
+  write.table(temporary_df_final, paste(save_path, "R0_Final_Table_Custom_Split.tsv", sep = ""), quote = FALSE, sep = "\t", row.names = FALSE)
   
-  # 2.6 Plotting ----
-  col_fun <- colorRamp2(c(0, 10), hcl_palette = "Blues", reverse = TRUE)
-  
+  # 2.4 Plotting ----
   f_pw_df <- data.frame()
-  pdf(paste(save_path, "R0_Gene_Expression_Fisher_Exact_Nominal_P_split_3_subset.pdf", sep = ""), width = 15, height = 15)
+  pdf(paste(save_path, "R0_Gene_Expression_Fisher_Exact_Nominal_P_Custom_Split.pdf", sep = ""), width = 15, height = 15)
   for (i in seq_len(nrow(INSIDE_OUTSIDE_GENES))){
     pair <- INSIDE_OUTSIDE_GENES$category[i]
     gene <- INSIDE_OUTSIDE_GENES$gene[i]
@@ -2336,6 +1969,10 @@ if (INSIDE_OUTSIDE_NICHE){
     diag(temp_stats_data_spread) <- NA
     
     # Make the heatmap ----
+    if (min(range(temp_stats_data_spread, na.rm = TRUE)) == max(range(temp_stats_data_spread, na.rm = TRUE))){
+      col_fun <- colorRamp2(c(min(temp_stats_data_spread, na.rm = TRUE), min(temp_stats_data_spread, na.rm = TRUE) + 1), hcl_palette = "Blues", reverse = TRUE)
+    } else{col_fun <- colorRamp2(range(temp_stats_data_spread, na.rm = TRUE), hcl_palette = "Blues", reverse = TRUE)}
+    
     htp_name <- paste(gene, "- ", pair, ":",
                       "\nAbsolute Value of The P-Value Scientific Notation Exponent [Capped at 10] \n[Post-Hoc Pairwise Fisher Exact P-Value]", 
                       "\nFisher Exact P-Value: ", temp$p.value, sep = "")
@@ -2347,21 +1984,26 @@ if (INSIDE_OUTSIDE_NICHE){
     draw(htp, column_title = htp_name, padding = unit(c(3, 3, 3, 3), "cm"))
   }
   dev.off()
-  write.table(f_pw_df, paste(save_path, "r0_fischer_pw_stats_table_split_3_subset.tsv", sep = ""), quote = FALSE, sep = "\t")
+  write.table(f_pw_df, paste(save_path, "R0_Fischer_Pairwise_Stat_Table_Custom_Split.tsv", sep = ""), quote = FALSE, sep = "\t", row.names = FALSE)
   
   temporary_df_final$prop <- (temporary_df_final$positive / temporary_df_final$total_spots) * 100
-  pdf(paste(save_path, "prop_pos_bins.pdf", sep = ""), width = 12, height = 8)
-  for (pair in unique(INSIDE_OUTSIDE_GENES$category)){
-    genes <- INSIDE_OUTSIDE_GENES$gene[INSIDE_OUTSIDE_GENES$category == pair]
-    temp_temp_plot <- temporary_df_final[temporary_df_final$gene %in% genes,]
-    
-    gp1 <- ggplot(temp_temp_plot, aes(x = niche, y = prop, fill = niche)) + 
-      geom_bar(stat="identity") + 
-      theme_classic2() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-      labs(title = "Proportion of Spots Positive For Gene Expression Across Neighborhoods.",
-           subtitle = pair) + 
-      scale_y_continuous(expand = c(0, 0)) + facet_wrap(~ gene, scales = "free_y")
-    print(gp1)
-  }
+  
+  temporary_df_final$niche[temporary_df_final$niche == "1_bS_inside"] <- "1 (fibroblast-rich)"
+  temporary_df_final$niche[temporary_df_final$niche == "2_bS_6_7_positive_inside"] <- "2 (endothelial / pericytes)"
+  temporary_df_final$niche[temporary_df_final$niche == "3_bS_remainder_inside"] <- "3 (tumor)"
+  
+  temporary_df_final <- merge(temporary_df_final, INSIDE_OUTSIDE_GENES, by = "gene")
+  
+  cols <- c("#43914e", "#3f509e", "#cf853a")
+  names(cols) <- unique(temporary_df_final$niche)
+  pdf(paste(save_path, "Proportion_Gene_Positive_Bins_Custom_Split.pdf", sep = ""), width = 30, height = 8)
+  gp1 <- ggplot(temporary_df_final, aes(x = niche, y = prop, color = niche, fill = niche)) + 
+    geom_bar(stat="identity") + 
+    theme_classic2() + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+    labs(title = "Percent of Bins Positive For Gene Expression Across Neighborhoods.") + 
+    scale_color_manual(values = cols) + scale_fill_manual(values = cols) +
+    scale_y_continuous(expand = c(0, 0)) + 
+    facet_wrap(~ category + gene, scales = "free_y", ncol = length(unique(temporary_df_final$gene)))
+  print(gp1)
   dev.off()
 }
